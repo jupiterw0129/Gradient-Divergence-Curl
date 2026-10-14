@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场的实验室｜梯度、散度与旋度</title>
+<style>
+:root{--ink:#20313a;--muted:#63777c;--paper:#f5f3eb;--line:#d2dad7;--blue:#176f8d;--red:#c6533d;--teal:#16877e;--card:#fffdf7}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:"Noto Sans CJK SC","Microsoft YaHei",sans-serif}button,input{font:inherit}button{cursor:pointer}
+.page{max-width:1800px;margin:auto;padding:12px clamp(14px,2.2vw,32px) 18px}
+.tabs{display:flex;border-bottom:1px solid var(--line);margin:0 0 12px;overflow:auto}.tab{min-width:160px;border:0;border-bottom:3px solid transparent;background:transparent;text-align:left;padding:9px 18px 11px;color:var(--muted);white-space:nowrap}.tab:hover,.tab:focus-visible{background:#e9eeea}.tab.active{border-color:var(--red);color:var(--ink);background:var(--card)}.tab span{display:block;font-size:15px;letter-spacing:.13em}.tab b{display:block;font:18px Georgia,serif;margin-top:4px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,390px);gap:14px;align-items:start}.visual{min-width:0}.stage{position:relative;background:#f9f8f2;border:1px solid #bac8c6;box-shadow:0 8px 30px #273f4310;overflow:hidden}#field{display:block;width:100%;height:clamp(390px,calc(100dvh - 105px),780px);touch-action:none;cursor:crosshair}.canvas-label{position:absolute;top:15px;left:18px;font:13px Consolas,"Courier New",monospace;letter-spacing:.06em;color:#40616b;background:#f9f8f2dc;padding:5px 8px;pointer-events:none}
+.side{display:flex;flex-direction:column;gap:10px}.surface,.panel{border:1px solid var(--line);background:var(--card)}.surface{min-height:182px;padding:12px 16px 4px}.surface .tag{font-size:13px;color:var(--blue);font-weight:700;letter-spacing:.09em}#mini{width:100%;height:150px;display:block}.panel{padding:16px 18px}.panel h2{font-size:17px;margin:0 0 11px;letter-spacing:.08em}.section-label{display:block;color:var(--muted);font-size:14px;margin:12px 0 7px}
+.presets{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.preset{border:1px solid #cad3d0;background:transparent;color:#455c62;min-height:40px;padding:6px 4px;font-size:15px}.preset:hover,.preset:focus-visible{border-color:var(--ink)}.preset.selected{background:var(--ink);border-color:var(--ink);color:white}.slider-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:15px;font-size:15px}.slider-row output{font-family:Consolas,monospace;color:var(--blue);font-weight:bold}input[type=range]{width:100%;margin:9px 0 3px;accent-color:var(--blue)}.scale{display:flex;justify-content:space-between;font-size:13px;color:#829095}
+.readout{display:grid;grid-template-columns:1fr;border:1px solid var(--line)}.readout>div{min-height:48px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 11px}.readout>div+div{border-top:1px solid var(--line)}.readout small{color:var(--muted);font-size:13px;line-height:1.3}.readout strong{color:var(--ink);font:18px/1.3 Consolas,"Courier New",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}.formula{background:#eaf2f0;border:1px solid #cadfda;padding:13px 14px;line-height:1.6;margin-top:11px;overflow:auto}.formula code{font:17px Cambria,Georgia,serif;white-space:nowrap}.toolbar{display:flex;justify-content:flex-end;align-items:center;font-size:14px}.plain{border:1px solid var(--line);background:transparent;color:var(--ink);padding:7px 12px}.plain:hover{background:white}
+.surface:has(#mini[data-view="gradient"]){min-height:237px}.surface:has(#mini[data-view="gradient"]) #mini{height:205px}
+@media(max-width:960px){.layout{grid-template-columns:1fr}#field{height:min(65vh,620px)}}
+@media(max-width:600px){.page{padding:10px 12px 22px}.tab{min-width:112px;padding:10px}.tab b{font-size:15px}#field{height:420px}}
+</style>
+</head>
+<body><main class="page">
+<nav class="tabs" aria-label="选择数学运算"><button type="button" class="tab active" data-tab="gradient" aria-selected="true"><span>01 / 梯度</span><b>∇u</b></button><button type="button" class="tab" data-tab="divergence" aria-selected="false"><span>02 / 散度</span><b>∇ · F</b></button><button type="button" class="tab" data-tab="curl" aria-selected="false"><span>03 / 旋度</span><b>∇ × F</b></button></nav>
+<div class="layout"><section class="visual" aria-label="交互场图"><div class="stage"><canvas id="field" aria-label="场的坐标图；拖动探针查看位置读数"></canvas><div class="canvas-label" id="canvasLabel"></div></div></section>
+<aside class="side"><div class="surface"><div class="tag" id="miniLabel"></div><canvas id="mini" aria-label="小区域示意"></canvas></div><section class="panel"><h2>01 / 实验控制</h2><div class="section-label">选择场的状态</div><div class="presets" id="presets"></div><div class="slider-row"><label for="strength">强度</label><output id="strengthValue">1.0</output></div><input id="strength" type="range" min="0.2" max="2" step="0.1" value="1"><div class="scale"><span>缓和</span><span>强烈</span></div><div class="slider-row"><label for="radius" id="radiusLabel"></label><output id="radiusValue">1.15</output></div><input id="radius" type="range" min="0.55" max="1.9" step="0.05" value="1.15"><div class="scale"><span id="radiusMin"></span><span id="radiusMax"></span></div></section><section class="panel"><h2>02 / 探针读数</h2><div class="readout" id="readout"></div><div class="formula"><code id="formula"></code></div></section><div class="toolbar"><button class="plain" id="play" type="button" aria-pressed="false">暂停动画</button></div></aside></div>
+</main><script>
+(()=>{
+const field=$('field'),ctx=field.getContext('2d'),mini=$('mini'),mc=mini.getContext('2d');
+function $(id){return document.getElementById(id)}
+const modes={gradient:[['hill','山丘'],['well','山谷']],divergence:[['source','有源'],['sink','有沟'],['flow','无源平流'],['vortex','无源旋涡']],curl:[['right','右旋'],['left','左旋'],['still','无旋平流'],['radial','无旋发散']]};
+const state={tab:'gradient',mode:'hill',strength:1,radius:1.15,probe:{x:.8,y:.55},playing:true,clock:0};
+let width=0,height=0,mw=0,mh=0,last=0,dragging=false;
+const limit=2.6,clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v)),fmt=v=>(Math.abs(v)<.005?0:v).toFixed(2);
+const scale=()=>Math.min((width-68)/(2*limit),(height-66)/(2*limit));
+const point=(x,y)=>({x:width/2+x*scale(),y:height/2-y*scale()});
+const coords=(x,y)=>({x:clamp((x-width/2)/scale(),-limit,limit),y:clamp((height/2-y)/scale(),-limit,limit)});
+function scalar(x,y){return (state.mode==='well'?-1:1)*state.strength*Math.exp(-(x*x+y*y)/(2*state.radius**2))}
+function grad(x,y){const u=scalar(x,y);return {x:-x*u/state.radius**2,y:-y*u/state.radius**2}}
+function vector(x,y){const k=state.strength;
+  if(state.tab==='divergence')return state.mode==='source'?{x:k*x,y:k*y}:state.mode==='sink'?{x:-k*x,y:-k*y}:state.mode==='vortex'?{x:-k*y,y:k*x}:{x:k,y:0};
+  return state.mode==='right'?{x:-k*y,y:k*x}:state.mode==='left'?{x:k*y,y:-k*x}:state.mode==='radial'?{x:k*x,y:k*y}:{x:k,y:0};
+}
+function line(x1,y1,x2,y2,color,w=1){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=w;ctx.stroke()}
+function arrow(x,y,dx,dy,color,w=2,head=6){const length=Math.hypot(dx,dy);if(length<.01)return;line(x,y,x+dx,y+dy,color,w);const a=Math.atan2(dy,dx);ctx.beginPath();ctx.moveTo(x+dx,y+dy);ctx.lineTo(x+dx-head*Math.cos(a-.48),y+dy-head*Math.sin(a-.48));ctx.lineTo(x+dx-head*Math.cos(a+.48),y+dy-head*Math.sin(a+.48));ctx.closePath();ctx.fillStyle=color;ctx.fill()}
+function base(){ctx.fillStyle='#f9f8f2';ctx.fillRect(0,0,width,height);const s=scale();for(let x=width/2%s;x<width;x+=s)line(x,0,x,height,'#e8e9e1');for(let y=height/2%s;y<height;y+=s)line(0,y,width,y,'#e8e9e1')}
+function axes(){const o=point(0,0);ctx.save();ctx.setLineDash([3,5]);line(o.x,16,o.x,height-16,'#93b2b1');line(16,o.y,width-16,o.y,'#93b2b1');ctx.setLineDash([]);ctx.font='13px Consolas,monospace';ctx.fillStyle='#58777e';for(let n=-2;n<=2;n++){const x=point(n,0),y=point(0,n);line(x.x,o.y-4,x.x,o.y+4,'#789b9c');line(o.x-4,y.y,o.x+4,y.y,'#789b9c');if(n){ctx.fillText(String(n),x.x-4,o.y+19);ctx.fillText(String(n),o.x+8,y.y+4)}}ctx.font='italic 18px Georgia';ctx.fillStyle='#45646b';ctx.fillText('x',width-30,o.y-10);ctx.fillText('y',o.x+12,29);ctx.restore()}
+function gradientScene(){const s=scale(),c=point(0,0),positive=state.mode==='hill';const g=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,2.8*state.radius*s);if(positive){g.addColorStop(0,'#d26d50d9');g.addColorStop(.32,'#e9aa83a3');g.addColorStop(.72,'#f2d9b555');g.addColorStop(1,'#f9f8f200')}else{g.addColorStop(0,'#317b9fcf');g.addColorStop(.34,'#83b7c5a3');g.addColorStop(.72,'#cadde069');g.addColorStop(1,'#f9f8f200')}ctx.fillStyle=g;ctx.fillRect(0,0,width,height);axes();
+  for(let n=1;n<=6;n++){const r=state.radius*Math.sqrt(-2*Math.log(n/7))*s;ctx.beginPath();ctx.arc(c.x,c.y,r,0,Math.PI*2);ctx.strokeStyle=positive?'#a54f40a1':'#35728aa8';ctx.lineWidth=n===4?1.5:1;ctx.stroke()}
+  for(let x=-2.25;x<=2.26;x+=.75)for(let y=-2.25;y<=2.26;y+=.75){const v=grad(x,y),p=point(x,y),mag=Math.hypot(v.x,v.y),length=clamp(mag*19,0,22);if(length>1)arrow(p.x,p.y,v.x/mag*length,-v.y/mag*length,'#237d78bd',1.3,4)}
+  const p=point(state.probe.x,state.probe.y),v=grad(state.probe.x,state.probe.y),mag=Math.hypot(v.x,v.y);
+  if(mag>.001){const nx=v.x/mag,ny=v.y/mag,travel=.55*(.5+.5*Math.sin(state.clock*1.35-.8));const end=point(state.probe.x+nx*travel,state.probe.y+ny*travel);
+    ctx.save();ctx.setLineDash([5,5]);line(p.x,p.y,end.x,end.y,'#8b694e',2);ctx.restore();ctx.beginPath();ctx.arc(end.x,end.y,7,0,Math.PI*2);ctx.fillStyle='#f5c64c';ctx.fill();ctx.strokeStyle='#7a5530';ctx.lineWidth=2;ctx.stroke();
+    const length=clamp(mag*70,23,88);arrow(p.x,p.y,nx*length,-ny*length,'#be4432',3.2,10)}
+}
+function streamlines(){ctx.save();ctx.beginPath();ctx.rect(20,20,width-40,height-40);ctx.clip();
+  for(let index=0;index<16;index++){
+    const angle=index*Math.PI/8,radial=['source','sink','radial'].includes(state.mode),straight=['flow','still'].includes(state.mode);
+    if(radial){const a=point(Math.cos(angle)*.18,Math.sin(angle)*.18),b=point(Math.cos(angle)*2.7,Math.sin(angle)*2.7);line(a.x,a.y,b.x,b.y,'#7faeb38a',1)}
+    else if(straight){const y=-2.25+index*.3,a=point(-2.7,y),b=point(2.7,y);line(a.x,a.y,b.x,b.y,'#7faeb38a',1)}
+    else if(index<5){const center=point(0,0);ctx.beginPath();ctx.arc(center.x,center.y,(.45+index*.47)*scale(),0,Math.PI*2);ctx.strokeStyle='#7faeb38a';ctx.lineWidth=1;ctx.stroke()}
+    for(let bead=0;bead<3;bead++){
+      const phase=(bead/3+index*.071+state.clock*.12*state.strength)%1;let x,y;
+      if(radial){const duration=Math.log(2.75/.2)/state.strength,time=(state.clock*.65+bead*duration/3+index*duration*.071)%duration,r=state.mode==='sink'?2.75*Math.exp(-state.strength*time):.2*Math.exp(state.strength*time);x=Math.cos(angle)*r;y=Math.sin(angle)*r}
+      else if(straight){x=-2.7+5.4*phase;y=-2.25+index*.3}
+      else if(index<5){const r=.45+index*.47,a=2*Math.PI*(bead/3+index*.11)+(state.mode==='right'?1:-1)*state.clock*state.strength;x=Math.cos(a)*r;y=Math.sin(a)*r}
+      else continue;
+      const p=point(x,y);ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='#167f87';ctx.fill()
+    }
+  }ctx.restore()}
+function cycleTime(){return (state.clock*.18)%1*.4}
+function vectorScene(){axes();streamlines();for(let x=-2.25;x<=2.26;x+=.75)for(let y=-2.25;y<=2.26;y+=.75){const v=vector(x,y),p=point(x,y),mag=Math.hypot(v.x,v.y),length=clamp(mag*12,4,28);if(mag>.01)arrow(p.x,p.y,v.x/mag*length,-v.y/mag*length,'#227f82',1.8,5)}
+  const p=point(state.probe.x,state.probe.y),R=state.radius*scale()*.49,t=cycleTime();ctx.save();ctx.setLineDash([5,5]);ctx.beginPath();ctx.arc(p.x,p.y,R,0,Math.PI*2);ctx.strokeStyle='#b95d4d';ctx.lineWidth=2;ctx.stroke();ctx.restore();
+  if(state.tab==='divergence'){const sign=state.mode==='source'?1:state.mode==='sink'?-1:0,expanded=R*Math.exp(sign*state.strength*t);ctx.beginPath();ctx.arc(p.x,p.y,expanded,0,Math.PI*2);ctx.fillStyle='#d65c4219';ctx.fill();ctx.strokeStyle='#bb513d';ctx.lineWidth=3;ctx.stroke();for(let index=0;index<8;index++){const a=index*Math.PI/4+(state.mode==='vortex'?state.strength*t:0),qx=p.x+Math.cos(a)*expanded,qy=p.y-Math.sin(a)*expanded;ctx.beginPath();ctx.arc(qx,qy,3,0,Math.PI*2);ctx.fillStyle='#bb513d';ctx.fill()}}
+  else{const sign=state.mode==='right'?1:state.mode==='left'?-1:0,a=sign*state.strength*t,size=R*.64*(state.mode==='radial'?Math.exp(state.strength*t):1);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(-a);ctx.fillStyle='#d65c421c';ctx.strokeStyle='#bb513d';ctx.lineWidth=3;ctx.fillRect(-size,-size,size*2,size*2);ctx.strokeRect(-size,-size,size*2,size*2);line(0,0,size,0,'#bb513d',2);ctx.beginPath();ctx.arc(size,0,5,0,Math.PI*2);ctx.fillStyle='#bb513d';ctx.fill();ctx.restore()}
+}
+function probe(){const p=point(state.probe.x,state.probe.y);ctx.beginPath();ctx.arc(p.x,p.y,8.5,0,Math.PI*2);ctx.fillStyle='#fffefa';ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle='#be4e38';ctx.stroke();const text=`P (${state.probe.x.toFixed(1)}, ${state.probe.y.toFixed(1)})`;ctx.font='14px Consolas,monospace';const tw=ctx.measureText(text).width,tx=clamp(p.x+12,12,width-tw-25),ty=clamp(p.y-13,33,height-30);ctx.fillStyle='#fffdf0e9';ctx.fillRect(tx-5,ty-15,tw+10,22);ctx.fillStyle='#394b54';ctx.fillText(text,tx,ty)}
+function surfaceScene(){
+  const hill=state.mode==='hill',centerX=mw/2,centerY=hill?130:75;
+  const project=(x,y,z)=>({x:centerX+(x-y)*Math.min(32,mw/11),y:centerY+(x+y)*10-z*32});
+  const polygon=(points,fill,stroke)=>{mc.beginPath();points.forEach((p,index)=>index?mc.lineTo(p.x,p.y):mc.moveTo(p.x,p.y));mc.closePath();mc.fillStyle=fill;mc.fill();mc.strokeStyle=stroke;mc.lineWidth=.7;mc.stroke()};
+  const grid=13,step=5.2/grid;
+  for(let depth=0;depth<grid*2-1;depth++)for(let ix=0;ix<grid;ix++){
+    const iy=depth-ix;if(iy<0||iy>=grid)continue;
+    const x=-2.6+ix*step,y=-2.6+iy*step;
+    const corners=[[x,y],[x+step,y],[x+step,y+step],[x,y+step]].map(([px,py])=>project(px,py,scalar(px,py)));
+    const height=Math.abs(scalar(x+step/2,y+step/2))/state.strength;
+    polygon(corners,hill?`rgba(211,103,70,${.09+height*.56})`:`rgba(51,133,163,${.1+height*.56})`,hill?'#bb806d88':'#6b9cac99');
+  }
+  const origin=project(-2.6,-2.6,0),xAxis=project(2.6,-2.6,0),yAxis=project(-2.6,2.6,0);
+  mc.beginPath();mc.moveTo(xAxis.x,xAxis.y);mc.lineTo(origin.x,origin.y);mc.lineTo(yAxis.x,yAxis.y);mc.strokeStyle='#55777d';mc.lineWidth=1.5;mc.stroke();
+  mc.font='italic 14px Georgia';mc.fillStyle='#526d72';mc.fillText('x',xAxis.x+4,xAxis.y+3);mc.fillText('y',yAxis.x-10,yAxis.y+3);mc.fillText('u',centerX+7,hill?13:mh-5);
+  const {x,y}=state.probe,g=grad(x,y),mag=Math.hypot(g.x,g.y),nx=mag>.001?g.x/mag:0,ny=mag>.001?g.y/mag:0,u=scalar(x,y);
+  const tangent=[[-.32,-.32],[.32,-.32],[.32,.32],[-.32,.32]].map(([dx,dy])=>project(x+dx,y+dy,u+g.x*dx+g.y*dy));
+  polygon(tangent,'#d65c4230','#b94c40bb');
+  const base=project(x,y,0),start=project(x,y,u);
+  mc.beginPath();mc.moveTo(base.x,base.y);mc.lineTo(start.x,start.y);mc.setLineDash([4,3]);mc.strokeStyle='#596d75';mc.lineWidth=1.3;mc.stroke();mc.setLineDash([]);
+  const travel=mag>.001?.55*(.5+.5*Math.sin(state.clock*1.35-.8)):0;
+  mc.beginPath();for(let index=0;index<=24;index++){const distance=index*.6/24,px=x+nx*distance,py=y+ny*distance,p=project(px,py,scalar(px,py));index?mc.lineTo(p.x,p.y):mc.moveTo(p.x,p.y)}mc.strokeStyle='#a53e32';mc.lineWidth=3;mc.stroke();
+  const end=project(x+nx*travel,y+ny*travel,scalar(x+nx*travel,y+ny*travel));
+  mc.beginPath();mc.arc(start.x,start.y,4.5,0,Math.PI*2);mc.fillStyle='#fffdf7';mc.fill();mc.strokeStyle='#a53e32';mc.lineWidth=2;mc.stroke();
+  mc.beginPath();mc.arc(end.x,end.y,6,0,Math.PI*2);mc.fillStyle='#f5c64c';mc.fill();mc.strokeStyle='#7a5530';mc.stroke();
+  mc.font='13px Consolas,monospace';mc.fillStyle='#9d4437';mc.fillText(`|∇u| = ${fmt(mag)}`,12,mh-8);
+}
+function miniScene(){if(!mw)return;mc.clearRect(0,0,mw,mh);mc.fillStyle='#fffdf7';mc.fillRect(0,0,mw,mh);mc.font='13px Consolas,monospace';mc.fillStyle='#526d72';
+  if(state.tab==='gradient'){surfaceScene();return}
+  const x=75,y=77,t=cycleTime(),radius=31;mc.setLineDash([5,4]);mc.strokeStyle='#9cb3b3';mc.lineWidth=2;
+  if(state.tab==='divergence'){
+    const sign=state.mode==='source'?1:state.mode==='sink'?-1:0,ratio=Math.exp(2*sign*state.strength*t),newRadius=radius*Math.sqrt(ratio);
+    mc.beginPath();mc.arc(x,y,radius,0,Math.PI*2);mc.stroke();mc.setLineDash([]);mc.beginPath();mc.arc(x,y,newRadius,0,Math.PI*2);mc.fillStyle='#d65c4224';mc.fill();mc.strokeStyle='#c6533d';mc.lineWidth=3;mc.stroke();if(state.mode==='vortex'){const a=state.strength*t;mc.beginPath();mc.arc(x+newRadius*Math.cos(a),y-newRadius*Math.sin(a),5,0,Math.PI*2);mc.fillStyle='#c6533d';mc.fill()}
+    mc.fillStyle='#526d72';mc.fillText('初始',43,142);mc.fillStyle='#c6533d';mc.font='bold 17px Consolas,monospace';mc.fillText(`A/A₀ = ${fmt(ratio)}`,128,65);mc.font='13px Consolas,monospace';mc.fillText(`A′/A = ${fmt(2*sign*state.strength)}`,128,93);mc.fillStyle='#526d72';mc.fillText('虚线 初态 / 实线 当前',128,121);
+  }else{
+    const sign=state.mode==='right'?1:state.mode==='left'?-1:0,angle=sign*state.strength*t,size=radius*(state.mode==='radial'?Math.exp(state.strength*t):1);
+    mc.strokeRect(x-radius,y-radius,radius*2,radius*2);mc.setLineDash([]);mc.save();mc.translate(x,y);mc.rotate(-angle);mc.fillStyle='#d65c4224';mc.strokeStyle='#c6533d';mc.lineWidth=3;mc.fillRect(-size,-size,size*2,size*2);mc.strokeRect(-size,-size,size*2,size*2);mc.beginPath();mc.arc(size,0,5,0,Math.PI*2);mc.fillStyle='#c6533d';mc.fill();mc.restore();
+    mc.fillStyle='#c6533d';mc.font='bold 17px Consolas,monospace';mc.fillText(`θ = ${fmt(angle)} rad`,128,65);mc.font='13px Consolas,monospace';mc.fillText(`Ω = ${fmt(sign*state.strength)}`,128,92);mc.fillStyle='#526d72';mc.fillText('旋度 ω = 2Ω',128,121);
+  }
+}
+function render(){if(!width)return;base();if(state.tab==='gradient')gradientScene();else vectorScene();probe();miniScene()}
+function frame(t){const dt=Math.min((t-last)/1000||0,.05);last=t;if(state.playing)state.clock+=dt;render();requestAnimationFrame(frame)}
+function resize(){const rect=field.getBoundingClientRect(),small=mini.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);width=rect.width;height=rect.height;mw=small.width;mh=small.height;for(const [canvas,w,h] of [[field,width,height],[mini,mw,mh]]){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0)}render()}
+function updateReadout(){const {x,y}=state.probe,R=state.radius*.49,k=state.strength;let entries,formula;
+  if(state.tab==='gradient'){const u=scalar(x,y),g=grad(x,y),mag=Math.hypot(g.x,g.y);entries=[['位置 P',`(${fmt(x)}, ${fmt(y)})`],['高度 u(P)',fmt(u)],['梯度 ∇u',`(${fmt(g.x)}, ${fmt(g.y)})`],['坡度 |∇u|',fmt(mag)]];formula=`u = ${state.mode==='well'?'−':''}${fmt(k)} exp[−(x²+y²)/(2·${fmt(state.radius)}²)]`}
+  else if(state.tab==='divergence'){const v=vector(x,y),div=state.mode==='source'?2*k:state.mode==='sink'?-2*k:0,flux=div*Math.PI*R*R;entries=[['位置 P',`(${fmt(x)}, ${fmt(y)})`],['矢量 F(P)',`(${fmt(v.x)}, ${fmt(v.y)})`],['散度 ∇·F',fmt(div)],['穿过圆周的净通量',fmt(flux)]];formula=state.mode==='source'?`F = ${fmt(k)}(x, y)`:state.mode==='sink'?`F = −${fmt(k)}(x, y)`:state.mode==='vortex'?`F = ${fmt(k)}(−y, x)`:`F = (${fmt(k)}, 0)`}
+  else{const v=vector(x,y),curl=state.mode==='right'?2*k:state.mode==='left'?-2*k:0,circulation=curl*Math.PI*R*R;entries=[['位置 P',`(${fmt(x)}, ${fmt(y)})`],['矢量 F(P)',`(${fmt(v.x)}, ${fmt(v.y)})`],['旋度 (∇×F)z',fmt(curl)],['沿圆周的环量',fmt(circulation)]];formula=state.mode==='right'?`F = ${fmt(k)}(−y, x)`:state.mode==='left'?`F = ${fmt(k)}(y, −x)`:state.mode==='radial'?`F = ${fmt(k)}(x, y)`:`F = (${fmt(k)}, 0)`}
+  $('readout').innerHTML=entries.map(([name,value])=>`<div><small>${name}</small><strong>${value}</strong></div>`).join('');$('formula').textContent=formula;
+}
+function updateUI(){document.querySelectorAll('.tab').forEach(el=>{const selected=el.dataset.tab===state.tab;el.classList.toggle('active',selected);el.setAttribute('aria-selected',String(selected))});$('presets').innerHTML=modes[state.tab].map(([key,label])=>`<button type="button" class="preset ${key===state.mode?'selected':''}" data-mode="${key}" aria-pressed="${key===state.mode}">${label}</button>`).join('');$('radiusLabel').textContent=state.tab==='gradient'?(state.mode==='well'?'山谷宽度':'山丘宽度'):'探针半径';$('radiusMin').textContent=state.tab==='gradient'?'窄':'小';$('radiusMax').textContent=state.tab==='gradient'?'宽':'大';
+  const labels={gradient:['SCALAR FIELD · u(x, y)','曲面 · 梯度方向与局部切平面'],divergence:['VECTOR FIELD · F(x, y)','随体小块 · 面积（已扣除平移）'],curl:['VECTOR FIELD · F(x, y)','随体小块 · 角度（已扣除平移）']}[state.tab];$('canvasLabel').textContent=labels[0];$('miniLabel').textContent=labels[1];mini.setAttribute('data-view',state.tab);mini.setAttribute('aria-label',state.tab==='gradient'?'标量场三维曲面、局部切平面和沿梯度移动的标记':state.tab==='divergence'?'随体小块面积变化':'随体小块角度变化');updateReadout();render()}
+document.querySelector('.tabs').addEventListener('click',e=>{const button=e.target.closest('[data-tab]');if(!button)return;state.tab=button.dataset.tab;state.mode=modes[state.tab][0][0];state.clock=0;updateUI()});
+$('presets').addEventListener('click',e=>{const button=e.target.closest('[data-mode]');if(!button)return;state.mode=button.dataset.mode;state.clock=0;updateUI()});
+for(const id of ['strength','radius'])$(id).addEventListener('input',e=>{state[id]=Number(e.target.value);$(id+'Value').textContent=state[id].toFixed(id==='strength'?1:2);updateReadout();render()});
+$('play').addEventListener('click',()=>{state.playing=!state.playing;$('play').textContent=state.playing?'暂停动画':'继续动画';$('play').setAttribute('aria-pressed',String(!state.playing))});
+function moveProbe(e){const rect=field.getBoundingClientRect();state.probe=coords(e.clientX-rect.left,e.clientY-rect.top);updateReadout();render()}
+field.addEventListener('pointerdown',e=>{dragging=true;field.setPointerCapture(e.pointerId);moveProbe(e)});field.addEventListener('pointermove',e=>{if(dragging)moveProbe(e)});field.addEventListener('pointerup',()=>dragging=false);field.addEventListener('pointercancel',()=>dragging=false);
+new ResizeObserver(resize).observe(field);new ResizeObserver(resize).observe(mini);updateUI();requestAnimationFrame(frame);
+})();
+</script></body></html>
